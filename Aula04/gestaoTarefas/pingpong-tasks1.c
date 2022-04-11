@@ -53,7 +53,6 @@ int main (int argc, char *argv[])
    task_create (&Pong, BodyPong, "        Pong") ;
 
    task_switch (&Ping);
-   printf("Main!\n");
    task_switch (&Pong);
    
 

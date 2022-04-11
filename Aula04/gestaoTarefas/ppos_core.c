@@ -6,8 +6,7 @@
 #define STACKSIZE 64*1024
 
 int id;
-task_t *currentTask;
-
+task_t *currentTask, *mainTask;
 
 void ppos_init() {
     #ifdef DEBUG
@@ -17,7 +16,9 @@ void ppos_init() {
     id = 0;
 
     currentTask = (task_t*)malloc(sizeof(task_t));
+    mainTask = (task_t*)malloc(sizeof(task_t));
     getcontext(&currentTask->context);
+    mainTask = currentTask;
 
     char* stack = malloc(STACKSIZE);
 
@@ -74,11 +75,8 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
 }
 
 void task_exit (int exit_code) {
-    if (currentTask) {
-        free(currentTask);
-        currentTask = NULL;
-        return;
-    }
+    currentTask = mainTask;
+    setcontext(&currentTask->context);
 }
 
 int task_switch (task_t *task) {

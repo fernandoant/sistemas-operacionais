@@ -12,7 +12,9 @@ typedef struct filatask_t {
 } FilaTask_t;
 
 int id;
+
 task_t *currentTask, *mainTask;
+task_t *dispatcherTask;
 
 FilaTask_t *queue = NULL;
 
@@ -118,4 +120,39 @@ int task_switch (task_t *task) {
 
 int task_id () {
     return currentTask->id;
+}
+
+void task_yield () {
+    if (currentTask->id != 0) {
+        queue_append((queue_t*)&queue, (queue_t**)&currentTask);
+        currentTask->status = 1;
+    }
+    task_switch(&dispatcherTask);
+}
+
+void bodyDispatcher() {
+    int userTasks = queue_size(queue);
+    while (userTasks > 0) {
+        task_t *next = scheduler();
+        task_switch(next);
+
+        // Tarefa está pronta
+        if (next->status == 0) {
+            queue_append((queue_t*)&queue, (queue_t**)&next);
+        }
+        // Tarefa está rodando
+        else if (next->status == 1) {
+
+        }
+        // Tarefa está suspensa
+        else if (next->status == 2) {
+            queue_append((queue_t*)&queue, (queue_t**)&next);
+        }
+        userTasks = queue_size(queue)
+    }
+    task_exit();
+}
+
+task_t* sheduler() {
+
 }

@@ -3,6 +3,7 @@
 
 int queue_size (queue_t *queue) {
     if (queue == NULL) {
+        getchar();
         printf("### Erro: A fila deve existir\n");
         return 0;
     }

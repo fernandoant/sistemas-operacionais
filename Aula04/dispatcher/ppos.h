@@ -136,6 +136,12 @@ int mqueue_destroy (mqueue_t *queue) ;
 // informa o número de mensagens atualmente na fila
 int mqueue_msgs (mqueue_t *queue) ;
 
+void bodyDispatcher();
+
+TaskQueue_t *scheduler();
+
+void print_elem (void *ptr);
+
 //==============================================================================
 
 // Redefinir funcoes POSIX "proibidas" como "FORBIDDEN" (gera erro ao compilar)

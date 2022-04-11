@@ -2,21 +2,14 @@
 #include <stdlib.h>
 #include "ppos.h"
 #include "queue.h"
-
-#define STACKSIZE 64*1024
-
-typedef struct filatask_t {
-    struct filatask_t *prev;
-    struct filatask_t *next;
-    task_t *task;
-} FilaTask_t;
+#include "ppos_data.h"
 
 int id;
 
 task_t *currentTask, *mainTask;
 task_t *dispatcherTask;
 
-FilaTask_t *queue = NULL;
+TaskQueue_t *tasks = NULL;
 
 void ppos_init() {
     #ifdef DEBUG
@@ -25,10 +18,23 @@ void ppos_init() {
 
     id = 0;
 
+    mainTask = (task_t*)malloc(sizeof(task_t));
+    dispatcherTask = (task_t*)malloc(sizeof(task_t));
+    
+    task_create(mainTask, NULL, NULL);
+    currentTask = mainTask;
+    task_create(dispatcherTask, (void*)bodyDispatcher, NULL);
+
+    mainTask->type = SYSTEM;
+    dispatcherTask->type = SYSTEM;
+
+    /*
     currentTask = (task_t*)malloc(sizeof(task_t));
     mainTask = (task_t*)malloc(sizeof(task_t));
     getcontext(&currentTask->context);
     mainTask = currentTask;
+
+    task_create(currentTask, NULL, NULL);
 
     char* stack = malloc(STACKSIZE);
 
@@ -47,6 +53,7 @@ void ppos_init() {
     currentTask->next = NULL;
     currentTask->prev = NULL;
     currentTask->preemptable = 1;
+    */
 
     setvbuf(stdout, 0, _IONBF, 0);
 
@@ -61,9 +68,9 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
     printf("PPOS: Criando Tarefa %d\n", id);
     #endif
 
-    char* stack = malloc(STACKSIZE);
-
     getcontext(&task->context);
+
+    char* stack = malloc(STACKSIZE);
 
     if(stack) {
         task->context.uc_stack.ss_sp = stack;
@@ -78,7 +85,9 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
 
     task->prev = NULL;
     task->next = NULL;
+    task->status = READY;
     task->id = id++;
+    task->type = USER;
     task->preemptable = 1;
 
     #ifdef DEBUG
@@ -93,16 +102,20 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
     printf("PPOS: Tarefa %d criada\n", task->id);
     #endif
 
-    FilaTask_t *aux = (FilaTask_t*)malloc(sizeof(FilaTask_t));
+    TaskQueue_t *aux = (TaskQueue_t*)malloc(sizeof(TaskQueue_t));
     aux->task = task;
-    queue_append((queue_t**)&queue, (queue_t*) aux);
+    queue_append((queue_t**)&tasks, (queue_t*) aux);
 
     return task->id;
 }
 
 void task_exit (int exit_code) {
-    currentTask = mainTask;
-    setcontext(&currentTask->context);
+
+    if (!queue_remove((queue_t**)&tasks, (queue_t*) currentTask)) {
+        printf("Tarefa %d removida com sucesso!\n", currentTask->id);
+    }
+
+    setcontext(&dispatcherTask->context);
 }
 
 int task_switch (task_t *task) {
@@ -122,37 +135,65 @@ int task_id () {
     return currentTask->id;
 }
 
-void task_yield () {
-    if (currentTask->id != 0) {
-        queue_append((queue_t*)&queue, (queue_t**)&currentTask);
-        currentTask->status = 1;
+void task_yield () {  
+
+    if (currentTask->id > 1) {
+        currentTask->status = READY;
+        queue_append((queue_t**)&tasks, (queue_t*) currentTask);
+
+        #ifdef DEBUG
+        printf("PPOS (%d): ", currentTask->id);
+        //queue_print("Tasks ", (queue_t*)tasks, print_elem);
+        //getchar();
+        #endif
+
     }
-    task_switch(&dispatcherTask);
+    task_switch(dispatcherTask);
 }
 
 void bodyDispatcher() {
-    int userTasks = queue_size(queue);
-    while (userTasks > 0) {
-        task_t *next = scheduler();
-        task_switch(next);
+    int userTasks = queue_size((queue_t*)tasks);
+    while (userTasks > 2) {
+        TaskQueue_t *next = scheduler();
+        #ifdef DEBUG
+        printf("    PPOS:UserTasks: %d\n", next->task->id);
+        #endif
+        if (next->task->type == USER) {
 
-        // Tarefa está pronta
-        if (next->status == 0) {
-            queue_append((queue_t*)&queue, (queue_t**)&next);
-        }
-        // Tarefa está rodando
-        else if (next->status == 1) {
+            // Tarefa está pronta
+            if (next->task->status == READY) {
+                queue_remove((queue_t**)&tasks, (queue_t*)next);
+            }
+            // Tarefa está rodando
+            else if (next->task->status == RUNNING) {
 
+            }
+            // Tarefa está suspensa
+            else if (next->task->status == IDLE) {
+
+            }
+            task_switch(next->task);
         }
-        // Tarefa está suspensa
-        else if (next->status == 2) {
-            queue_append((queue_t*)&queue, (queue_t**)&next);
+        else {
+            tasks = tasks->next;
         }
-        userTasks = queue_size(queue)
+        userTasks = queue_size((queue_t*)tasks);
     }
-    task_exit();
+    task_exit(0);
 }
 
-task_t* sheduler() {
+TaskQueue_t *scheduler() {
+    return tasks->next;
+}
 
+void print_elem (void *ptr)
+{
+   TaskQueue_t *elem = ptr ;
+
+   if (!elem)
+      return ;
+
+   elem->prev ? printf ("%d", elem->prev->task->id) : printf ("*") ;
+   printf ("<%d>", elem->task->id) ;
+   elem->next ? printf ("%d", elem->next->task->id) : printf ("*") ;
 }

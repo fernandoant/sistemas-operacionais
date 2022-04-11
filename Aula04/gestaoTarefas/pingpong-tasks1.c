@@ -13,7 +13,6 @@ task_t Ping, Pong ;
 // corpo da thread Ping
 void BodyPing (void * arg)
 {
-   printf("aqui");
    int i ;
    char* name = (char *) arg ;
 
@@ -49,11 +48,14 @@ int main (int argc, char *argv[])
 
    ppos_init () ;
 
+   
    task_create (&Ping, BodyPing, "    Ping") ;
    task_create (&Pong, BodyPong, "        Pong") ;
 
    task_switch (&Ping);
+   printf("Main!\n");
    task_switch (&Pong);
+   
 
    printf ("main: fim\n");
 

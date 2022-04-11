@@ -3,7 +3,6 @@
 #include "ppos.h"
 #include "queue.h"
 
-#define DEBUG
 #define STACKSIZE 64*1024
 
 int id;
@@ -16,18 +15,37 @@ void ppos_init() {
     #endif
 
     id = 0;
-    currentTask = (void*) 0;
+
+    currentTask = (task_t*)malloc(sizeof(task_t));
+    getcontext(&currentTask->context);
+
+    char* stack = malloc(STACKSIZE);
+
+    if(stack) {
+        currentTask->context.uc_stack.ss_sp = stack;
+        currentTask->context.uc_stack.ss_size = STACKSIZE;
+        currentTask->context.uc_stack.ss_flags = 0;
+        currentTask->context.uc_link = 0;
+    }
+    else {
+        perror ("Erro na criação da pilha: ") ;
+        return;
+    }
+
+    currentTask->id = id++;
+    currentTask->next = NULL;
+    currentTask->prev = NULL;
+    currentTask->preemptable = 1;
 
     setvbuf(stdout, 0, _IONBF, 0);
 }
 
 int task_create(task_t *task, void (*start_func)(void *), void *arg) {
 
-    if(!currentTask)
-        currentTask = task;
+    char* stack = malloc(STACKSIZE);
 
-    char* stack;
-    stack = malloc(STACKSIZE);
+    getcontext(&task->context);
+
     if(stack) {
         task->context.uc_stack.ss_sp = stack;
         task->context.uc_stack.ss_size = STACKSIZE;
@@ -66,11 +84,12 @@ void task_exit (int exit_code) {
 int task_switch (task_t *task) {
     if (currentTask) {
         #ifdef DEBUG
-        printf("Trocando contexto: %d -> %d\n", currentTask->id, task->id);
+        printf("Trocando contexto: ");
+        printf("%d -> %d\n", currentTask->id, task->id);
         #endif
         task_t* previousTask = currentTask;
         currentTask = task;
-        return swapcontext(&previousTask->context, &currentTask->context);
+        return swapcontext(&previousTask->context, &task->context);
     }
     return -1;  
 }

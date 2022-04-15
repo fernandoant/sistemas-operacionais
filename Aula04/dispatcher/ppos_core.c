@@ -9,7 +9,7 @@ int id;
 task_t *currentTask, *mainTask;
 task_t *dispatcherTask;
 
-TaskQueue_t *tasks = NULL;
+task_t *tasks = NULL;
 
 void ppos_init() {
     #ifdef DEBUG
@@ -27,33 +27,6 @@ void ppos_init() {
 
     mainTask->type = SYSTEM;
     dispatcherTask->type = SYSTEM;
-
-    /*
-    currentTask = (task_t*)malloc(sizeof(task_t));
-    mainTask = (task_t*)malloc(sizeof(task_t));
-    getcontext(&currentTask->context);
-    mainTask = currentTask;
-
-    task_create(currentTask, NULL, NULL);
-
-    char* stack = malloc(STACKSIZE);
-
-    if(stack) {
-        currentTask->context.uc_stack.ss_sp = stack;
-        currentTask->context.uc_stack.ss_size = STACKSIZE;
-        currentTask->context.uc_stack.ss_flags = 0;
-        currentTask->context.uc_link = 0;
-    }
-    else {
-        perror ("Erro na criação da pilha: ") ;
-        return;
-    }
-
-    currentTask->id = id++;
-    currentTask->next = NULL;
-    currentTask->prev = NULL;
-    currentTask->preemptable = 1;
-    */
 
     setvbuf(stdout, 0, _IONBF, 0);
 
@@ -102,8 +75,7 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
     printf("PPOS: Tarefa %d criada\n", task->id);
     #endif
 
-    TaskQueue_t *aux = (TaskQueue_t*)malloc(sizeof(TaskQueue_t));
-    aux->task = task;
+    task_t *aux = task;
     queue_append((queue_t**)&tasks, (queue_t*) aux);
 
     return task->id;
@@ -111,7 +83,12 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
 
 void task_exit (int exit_code) {
 
+    #ifdef DEBUG
+    printf("PPOS: task_exit -> encerrando task %d\n", currentTask->id);
+    #endif
+
     if (!queue_remove((queue_t**)&tasks, (queue_t*) currentTask)) {
+        currentTask->status = FINISHED;
         printf("Tarefa %d removida com sucesso!\n", currentTask->id);
     }
 
@@ -143,8 +120,7 @@ void task_yield () {
 
         #ifdef DEBUG
         printf("PPOS (%d): ", currentTask->id);
-        //queue_print("Tasks ", (queue_t*)tasks, print_elem);
-        //getchar();
+
         #endif
 
     }
@@ -154,25 +130,30 @@ void task_yield () {
 void bodyDispatcher() {
     int userTasks = queue_size((queue_t*)tasks);
     while (userTasks > 2) {
-        TaskQueue_t *next = scheduler();
+        task_t *next = scheduler();
         #ifdef DEBUG
-        printf("    PPOS:UserTasks: %d\n", next->task->id);
+        printf("    PPOS: UserTasks: %d\n", next->id);
         #endif
-        if (next->task->type == USER) {
+        if (next->type == USER) {
 
             // Tarefa está pronta
-            if (next->task->status == READY) {
+            if (next->status == READY) {
                 queue_remove((queue_t**)&tasks, (queue_t*)next);
             }
             // Tarefa está rodando
-            else if (next->task->status == RUNNING) {
+            else if (next->status == RUNNING) {
 
             }
             // Tarefa está suspensa
-            else if (next->task->status == IDLE) {
+            else if (next->status == IDLE) {
 
             }
-            task_switch(next->task);
+            task_switch(next);
+
+            if (currentTask->status == FINISHED) {
+                free(currentTask->context.uc_stack.ss_sp);
+                currentTask = NULL;
+            }
         }
         else {
             tasks = tasks->next;
@@ -182,18 +163,18 @@ void bodyDispatcher() {
     task_exit(0);
 }
 
-TaskQueue_t *scheduler() {
+task_t *scheduler() {
     return tasks->next;
 }
 
 void print_elem (void *ptr)
 {
-   TaskQueue_t *elem = ptr ;
+   task_t *elem = ptr ;
 
    if (!elem)
       return ;
 
-   elem->prev ? printf ("%d", elem->prev->task->id) : printf ("*") ;
-   printf ("<%d>", elem->task->id) ;
-   elem->next ? printf ("%d", elem->next->task->id) : printf ("*") ;
+   elem->prev ? printf ("%d", elem->prev->id) : printf ("*") ;
+   printf ("<%d>", elem->id) ;
+   elem->next ? printf ("%d", elem->next->id) : printf ("*") ;
 }

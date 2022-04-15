@@ -138,7 +138,7 @@ int mqueue_msgs (mqueue_t *queue) ;
 
 void bodyDispatcher();
 
-TaskQueue_t *scheduler();
+task_t *scheduler();
 
 void print_elem (void *ptr);
 

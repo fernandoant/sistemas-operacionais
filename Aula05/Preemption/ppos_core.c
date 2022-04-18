@@ -37,7 +37,7 @@ void ppos_init() {
     currentTask = mainTask;
 
     // ============== INICIALIZAÇÃO DO RELÓGIO ================
-    action.sa_handler = handler;
+    action.sa_handler = clockHandler;
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
 
@@ -121,6 +121,7 @@ void task_exit (int exit_code) {
     #ifdef DEBUG
         printf("PPOS: Tarefa %d removida com sucesso!\n", currentTask->id);
     #endif
+    printf("Task %d Elapsed time: %dms\n", currentTask->id, currentTask->elapsedTime);
     if (currentTask->id != 1) {
         setcontext(&dispatcherTask->context);
     }
@@ -197,11 +198,11 @@ task_t *scheduler() {
         printf("PPOS: CurrentTask: %d\n", currentTask->id);
     #endif
 
-    task_t *queue = currentTask->next;
-    task_t *nextTask = currentTask;
-    int priority = nextTask->priority;
+    //task_t *queue = currentTask->next;
+    //task_t *nextTask = currentTask;
+    //int priority = nextTask->priority;
 
-    while (queue != currentTask) {
+    /*while (queue != currentTask) {
         if (queue->type != SYSTEM) {
             if (queue->status == READY && priority >= task_getprio(queue)) {
                 nextTask = queue;
@@ -211,7 +212,7 @@ task_t *scheduler() {
         queue = queue->next;
     }
 
-    task_setprio(nextTask, nextTask->initialPriority);
+    //task_setprio(nextTask, nextTask->initialPriority);
     queue = nextTask->next;
 
     while (queue != nextTask) {
@@ -219,10 +220,11 @@ task_t *scheduler() {
             task_setprio(queue, task_getprio(queue) - 1);
         }
         queue = queue->next;
-    }
+    }*/
 
-    return nextTask;
+    return currentTask->next;
 }
+
 
 void task_setprio(task_t *task, int prio) {
     if (task) {
@@ -241,10 +243,15 @@ int task_getprio(task_t *task) {
 }
 
 void clockHandler(int signalCode) {
-    if (signalCode == 14 && currentTaskQuantum == 20) {
-        task_yield();
-    }
-    else {
-        currentTaskQuantum += 1;
+    //printf("Task %d -> %d\n", currentTask->id, currentTask->elapsedTime);
+    currentTask->elapsedTime++;
+    if (currentTask->id > 1) {
+        if (signalCode == 14 && currentTaskQuantum == 20) {
+            currentTaskQuantum = 0;
+            task_yield();
+        }
+        else {
+            currentTaskQuantum += 1;
+        }
     }
 }

@@ -65,6 +65,8 @@ void task_setprio (task_t *task, int prio) ;
 // retorna a prioridade estática de uma tarefa (ou a tarefa atual)
 int task_getprio (task_t *task) ;
 
+void clockHandler(int signalCode);
+
 // operações de sincronização ==================================================
 
 // a tarefa corrente aguarda o encerramento de outra task

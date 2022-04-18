@@ -8,6 +8,8 @@
 #define __PPOS_DATA__
 
 #include <ucontext.h>		// biblioteca POSIX de trocas de contexto
+#include <signal.h>
+#include <sys/time.h>
 
 #define STACKSIZE 64*1024
 
@@ -61,6 +63,10 @@ typedef struct
 {
   // preencher quando necessário
 } mqueue_t ;
+
+struct sigaction action;
+
+struct itimerval timer;
 
 #endif
 

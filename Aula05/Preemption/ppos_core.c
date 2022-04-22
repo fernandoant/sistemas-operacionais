@@ -1,8 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <sys/time.h>
 #include "ppos.h"
 #include "queue.h"
-#include "ppos_data.h"
+
+#define TOTAL_QUANTUM 500
+
+//#define DEBUG
 
 int id;
 
@@ -10,6 +15,10 @@ task_t *currentTask, *mainTask;
 task_t *dispatcherTask;
 
 task_t *tasks = NULL;
+
+struct sigaction action;
+
+struct itimerval timer;
 
 int currentTaskQuantum = 0;
 
@@ -119,7 +128,7 @@ void task_exit (int exit_code) {
     #ifdef DEBUG
         printf("PPOS: Tarefa %d removida com sucesso!\n", currentTask->id);
     #endif
-    printf("Task %d Elapsed time: %dms\n", currentTask->id, currentTask->elapsedTime);
+    //printf("Task %d Elapsed time: %dms\n", currentTask->id, currentTask->elapsedTime);
     if (currentTask->id != 1) {
         setcontext(&dispatcherTask->context);
     }
@@ -159,6 +168,7 @@ void task_yield () {
 void bodyDispatcher() {
     int userTasks = queue_size((queue_t*)tasks);
     while (userTasks > 2) {
+
         task_t *next = scheduler();
         if (next->type == USER) {
 
@@ -182,7 +192,6 @@ void bodyDispatcher() {
             }
         }
         else {
-            printf("Pulando da tarefa %d para %d\n", tasks->id, tasks->next->id);
             tasks = tasks->next;
         }
         userTasks = queue_size((queue_t*)tasks);
@@ -241,10 +250,9 @@ int task_getprio(task_t *task) {
 }
 
 void clockHandler(int signalCode) {
-    //printf("Task %d -> %d\n", currentTask->id, currentTask->elapsedTime);
     currentTask->elapsedTime++;
-    if (currentTask->type != SYSTEM) {
-        if (signalCode == 14 && currentTaskQuantum == 200) {
+    if (currentTask->id > 1) {
+        if (signalCode == 14 && currentTaskQuantum == TOTAL_QUANTUM) {
             currentTaskQuantum = 0;
             task_yield();
         }

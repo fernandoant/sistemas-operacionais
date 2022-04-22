@@ -4,8 +4,6 @@
 #include "queue.h"
 #include "ppos_data.h"
 
-//#define DEBUG
-
 int id;
 
 task_t *currentTask, *mainTask;
@@ -161,7 +159,6 @@ void task_yield () {
 void bodyDispatcher() {
     int userTasks = queue_size((queue_t*)tasks);
     while (userTasks > 2) {
-
         task_t *next = scheduler();
         if (next->type == USER) {
 
@@ -185,6 +182,7 @@ void bodyDispatcher() {
             }
         }
         else {
+            printf("Pulando da tarefa %d para %d\n", tasks->id, tasks->next->id);
             tasks = tasks->next;
         }
         userTasks = queue_size((queue_t*)tasks);
@@ -245,8 +243,8 @@ int task_getprio(task_t *task) {
 void clockHandler(int signalCode) {
     //printf("Task %d -> %d\n", currentTask->id, currentTask->elapsedTime);
     currentTask->elapsedTime++;
-    if (currentTask->id > 1) {
-        if (signalCode == 14 && currentTaskQuantum == 20) {
+    if (currentTask->type != SYSTEM) {
+        if (signalCode == 14 && currentTaskQuantum == 200) {
             currentTaskQuantum = 0;
             task_yield();
         }

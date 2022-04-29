@@ -34,7 +34,6 @@ void ppos_init() {
     dispatcherTask = (task_t*)malloc(sizeof(task_t));
     
     task_create(mainTask, NULL, NULL);
-    currentTask = mainTask;
     task_create(dispatcherTask, (void*)bodyDispatcher, NULL);
 
     mainTask->type = SYSTEM;
@@ -116,7 +115,8 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
     printf("PPOS: Tarefa %d criada\n", task->id);
     #endif
 
-    queue_append((queue_t**)&tasks, (queue_t*) task);
+    task_t *aux = task;
+    queue_append((queue_t**)&tasks, (queue_t*) aux);
 
     return task->id;
 }
@@ -132,6 +132,7 @@ void task_exit (int exit_code) {
     #ifdef DEBUG
         printf("PPOS: Tarefa %d removida com sucesso!\n", currentTask->id);
     #endif
+
     printf("Task %d exit: execution time %4dms, processor time %dms, %d activations\n", currentTask->id, currentTask->executionTime, currentTask->processorTime, currentTask->activations);
     if (currentTask->id != 1) {
         setcontext(&dispatcherTask->context);
@@ -178,30 +179,26 @@ void bodyDispatcher() {
     while (userTasks > 2) {
 
         task_t *next = scheduler();
-        if (next->type == USER) {
 
-            // Tarefa está pronta
-            if (next->status == READY) {
-                queue_remove((queue_t**)&tasks, (queue_t*)next);
-            }
-            // Tarefa está rodando
-            else if (next->status == RUNNING) {
-
-            }
-            // Tarefa está suspensa
-            else if (next->status == IDLE) {
-
-            }
-            task_switch(next);
-
-            if (currentTask->status == FINISHED) {
-                free(currentTask->context.uc_stack.ss_sp);
-                currentTask = dispatcherTask;
-            }
+        // Tarefa está pronta
+        if (next->status == READY) {
+            queue_remove((queue_t**)&tasks, (queue_t*)next);
         }
-        else {
-            tasks = tasks->next;
+        // Tarefa está rodando
+        else if (next->status == RUNNING) {
+
         }
+        // Tarefa está suspensa
+        else if (next->status == IDLE) {
+
+        }
+        task_switch(next);
+
+        if (currentTask->status == FINISHED) {
+            free(currentTask->context.uc_stack.ss_sp);
+            currentTask = dispatcherTask;
+        }
+
         userTasks = queue_size((queue_t*)tasks);
     }
     task_exit(0);
@@ -220,11 +217,9 @@ task_t *scheduler() {
     // Percorre a fila procurando a próxima tarefa a ser executada
     // Quanto menor o valor, maior a prioridade
     while (queue != currentTask) {
-        if (queue->type != SYSTEM) {
-            if (queue->status == READY && priority > task_getprio(queue)) {
-                nextTask = queue;
-                priority = task_getprio(queue);
-            }
+        if (queue->status == READY && priority > task_getprio(queue)) {
+            nextTask = queue;
+            priority = task_getprio(queue);
         }
         queue = queue->next;
     }
@@ -233,7 +228,7 @@ task_t *scheduler() {
     queue = nextTask->next;
 
     while (queue != nextTask) {
-        if (queue->type != SYSTEM && task_getprio(queue) > -20) {
+        if (queue->id != 1 && task_getprio(queue) > -20) {
             task_setprio(queue, task_getprio(queue) - 1);
         }
         queue = queue->next;
@@ -263,7 +258,7 @@ void clockHandler(int signalCode) {
 
     currentTime++;
 
-    if (currentTask->id != 0) {
+    if (currentTask->id != 1) {
         if (signalCode == 14 && currentTask->currentQuantum == TOTAL_QUANTUM) {
             currentTask->currentQuantum = 0;
             task_yield();

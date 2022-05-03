@@ -50,5 +50,7 @@ int main (int argc, char *argv[])
    printf ("main: fim    em %4d ms\n", systime()) ;
    task_exit (0);
 
+   // printf("\n\nBEEN HERE!!\n\n");
+
    exit (0) ;
 }

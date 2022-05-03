@@ -7,8 +7,6 @@
 
 #define TOTAL_QUANTUM 20
 
-//#define DEBUG
-
 int id;
 
 task_t *currentTask, *mainTask;
@@ -29,7 +27,7 @@ void ppos_init() {
 
     id = 0;
     currentTime = 0;
-
+    
     mainTask = (task_t*)malloc(sizeof(task_t));
     dispatcherTask = (task_t*)malloc(sizeof(task_t));
     
@@ -37,7 +35,10 @@ void ppos_init() {
     task_create(dispatcherTask, (void*)bodyDispatcher, NULL);
 
     mainTask->type = SYSTEM;
+    mainTask->status = READY;
     dispatcherTask->type = SYSTEM;
+    dispatcherTask->status = READY;
+
 
     setvbuf(stdout, 0, _IONBF, 0);
 
@@ -124,21 +125,24 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
 void task_exit (int exit_code) {
 
     #ifdef DEBUG
-    printf("PPOS: task_exit -> encerrando task %d\n", currentTask->id);
+    printf("PPOS: task_exit -> Encerrando task %d\n", currentTask->id);
     #endif
 
     currentTask->status = FINISHED;
     currentTask->executionTime = systime() - currentTask->creationTime;
     #ifdef DEBUG
-        printf("PPOS: Tarefa %d removida com sucesso!\n", currentTask->id);
+        printf("PPOS: task_exit -> Task %d encerrada com sucesso!\n", currentTask->id);
     #endif
 
     printf("Task %d exit: execution time %4dms, processor time %dms, %d activations\n", currentTask->id, currentTask->executionTime, currentTask->processorTime, currentTask->activations);
-    if (currentTask->id != 1) {
-        setcontext(&dispatcherTask->context);
-    }
-    else {
+    
+    if (currentTask->id == 1) {
+        currentTask = mainTask;
         setcontext(&mainTask->context);
+    }
+    else if (dispatcherTask->status != FINISHED) {
+        currentTask = dispatcherTask;
+        setcontext(&currentTask->context);
     }
 }
 
@@ -150,7 +154,7 @@ int task_switch (task_t *task) {
         #endif
 
         task_t* previousTask = currentTask;
-        currentTask = task;
+        currentTask = task; 
         currentTask->activations++;
 
         taskInitialTime = systime();
@@ -166,7 +170,7 @@ int task_id () {
 
 void task_yield () {  
 
-    if (currentTask->id > 1) {
+    if (currentTask->id != 1) {
         currentTask->status = READY;
         queue_append((queue_t**)&tasks, (queue_t*)currentTask);
     }
@@ -176,7 +180,7 @@ void task_yield () {
 
 void bodyDispatcher() {
     int userTasks = queue_size((queue_t*)tasks);
-    while (userTasks > 2) {
+    while (userTasks > 1) {
 
         task_t *next = scheduler();
 
@@ -198,17 +202,13 @@ void bodyDispatcher() {
             free(currentTask->context.uc_stack.ss_sp);
             currentTask = dispatcherTask;
         }
-
         userTasks = queue_size((queue_t*)tasks);
     }
+    currentTask = dispatcherTask;
     task_exit(0);
 }
 
 task_t *scheduler() {
-
-    #ifdef DEBUG
-        printf("PPOS: CurrentTask: %d\n", currentTask->id);
-    #endif
 
     task_t *queue = currentTask->next;
     task_t *nextTask = queue;
@@ -261,6 +261,7 @@ void clockHandler(int signalCode) {
     if (currentTask->id != 1) {
         if (signalCode == 14 && currentTask->currentQuantum == TOTAL_QUANTUM) {
             currentTask->currentQuantum = 0;
+            queue_remove((queue_t**)&tasks, (queue_t*)currentTask);
             task_yield();
         }
         else {
